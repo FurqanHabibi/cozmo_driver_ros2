@@ -1,4 +1,4 @@
-#!/usr/bin/python3.5
+#!/usr/bin/python3
 # -*- encoding: utf-8 -*-
 """
 This file implements an ANKI Cozmo ROS driver.
@@ -27,16 +27,18 @@ limitations under the License.
 """
 # system
 import sys
-import numpy as np
 from copy import deepcopy
+import numpy as np
 
 # cozmo SDK
 import cozmo
 from cozmo.util import radians
 
 # ROS
-import rospy
+#import rospy
+import rclpy
 from transformations import quaternion_from_euler
+#from camera_info_manager import CameraInfoManager
 from camera_info_manager import CameraInfoManager
 
 # ROS msgs
@@ -105,19 +107,28 @@ class TransformBroadcaster(object):
         self.pub_tf.publish(tfm)
 
 
-class CozmoRos(object):
+#class CozmoRos(object):
+class CozmoRos(rclpy.Node):
     """
     The Cozmo ROS driver object.
 
     """
     
-    def __init__(self, coz):
+    def __init__(self, coz, node_name):
         """
 
-        :type   coz:    cozmo.Robot
-        :param  coz:    The cozmo SDK robot handle (object).
-        
+        :type   coz:        cozmo.Robot
+        :param  coz:        The cozmo SDK robot handle (object).
+        :type   node_name:  String
+        :param  node_name:  Name for the node
         """
+
+        # initialize node
+        super().__init__(node_name)
+
+        # node timer
+        self._timer_rate = 10  # Hz
+        self.timer = self.create_timer(1/self._timer_rate, self.timer_callback)
 
         # vars
         self._cozmo = coz
@@ -458,32 +469,33 @@ class CozmoRos(object):
         # store last pose
         self._last_pose = deepcopy(self._cozmo.pose)
 
-    def run(self, update_rate=10):
+    #def run(self, update_rate=10):
+    def timer_callback(self):
         """
-        Publish data continuously with given rate.
-
-        :type   update_rate:    int
-        :param  update_rate:    The update rate.
+        Publish data continuously.
 
         """
-        r = rospy.Rate(update_rate)
-        while not rospy.is_shutdown():
-            self._publish_tf(update_rate)
-            self._publish_image()
-            self._publish_objects()
-            self._publish_joint_state()
-            self._publish_imu()
-            self._publish_battery()
-            self._publish_odometry()
-            self._publish_diagnostics()
-            # send message repeatedly to avoid idle mode.
-            # This might cause low battery soon
-            # TODO improve this!
-            self._cozmo.drive_wheels(*self._wheel_vel)
-            # sleep
-            r.sleep()
+        #r = rospy.Rate(update_rate)
+        #while not rospy.is_shutdown():
+        self._publish_tf(self._timer_rate)
+        self._publish_image()
+        self._publish_objects()
+        self._publish_joint_state()
+        self._publish_imu()
+        self._publish_battery()
+        self._publish_odometry()
+        self._publish_diagnostics()
+        # send message repeatedly to avoid idle mode.
+        # This might cause low battery soon
+        # TODO improve this!
+        self._cozmo.drive_wheels(*self._wheel_vel)
+        # sleep
+        #r.sleep()
+
+    def destroy_node(self):
         # stop events on cozmo
         self._cozmo.stop_all_motors()
+        super.destroy_node()
 
 
 def cozmo_app(coz_conn):
@@ -499,14 +511,27 @@ def cozmo_app(coz_conn):
     """
     coz = coz_conn.wait_for_robot()
     coz.camera.image_stream_enabled = True
-    coz_ros = CozmoRos(coz)
-    coz_ros.run()
+    #coz_ros = CozmoRos(coz)
+    coz_ros = CozmoRos(coz, 'cozmo_driver')
+    #coz_ros.run()
+    rclpy.spin(coz_ros)
 
+    # Destroy the node explicitly
+    # (optional - otherwise it will be done automatically
+    # when the garbage collector destroys the node object)
+    coz_ros.destroy_node()
+    rclpy.shutdown()
 
-if __name__ == '__main__':
-    rospy.init_node('cozmo_driver')
+#if __name__ == '__main__':
+def main(args=None):
+    #rospy.init_node('cozmo_driver')
+    rclpy.init(args=args)
     cozmo.setup_basic_logging()
     try:
         cozmo.connect(cozmo_app)
-    except cozmo.ConnectionError as e:
-        sys.exit('A connection error occurred: {}'.format(e))
+    except cozmo.ConnectionError as err:
+        sys.exit('A connection error occurred: {}'.format(err))
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
