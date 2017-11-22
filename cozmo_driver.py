@@ -28,6 +28,8 @@ limitations under the License.
 # system
 import sys
 from copy import deepcopy
+from math import modf
+from time import time
 import numpy as np
 
 # cozmo SDK
@@ -38,7 +40,6 @@ from cozmo.util import radians
 #import rospy
 import rclpy
 from transformations import quaternion_from_euler
-#from camera_info_manager import CameraInfoManager
 from camera_info_manager import CameraInfoManager
 
 # ROS msgs
@@ -53,6 +54,7 @@ from std_msgs.msg import (
     String,
     Float64,
     ColorRGBA,
+    
 )
 from sensor_msgs.msg import (
     Image,
@@ -61,16 +63,37 @@ from sensor_msgs.msg import (
     Imu,
     JointState,
 )
+from builtin_interfaces.msg import Time
 
+## TODO: use ros time when rclpy supports it
+# simple class to get timestamp for ROS messages
+class TimeStamp():
+    @staticmethod
+    def now():
+        return TimeStamp._get_stamp(time())
+    
+    @staticmethod
+    def from_sec(sec):
+        return TimeStamp._get_stamp(sec)
+
+    @staticmethod
+    def _get_stamp(time_float):
+        time_frac_int = modf(time_float)
+        stamp = Time()
+        stamp.sec = int(time_frac_int[1])
+        stamp.nanosec = int(time_frac_int[0] * 1000000000) & 0xffffffff
+        return stamp
 
 # reused as original is not Python3 compatible
-class TransformBroadcaster(object):
+class TransformBroadcaster():
     """
     :class:`TransformBroadcaster` is a convenient way to send transformation updates on the ``"/tf"`` message topic.
     """
 
-    def __init__(self, queue_size=100):
-        self.pub_tf = rospy.Publisher("/tf", TFMessage, queue_size=queue_size)
+    #def __init__(self, node, queue_size=100):
+    def __init__(self, node):
+        #self.pub_tf = rospy.Publisher("/tf", TFMessage, queue_size=queue_size)
+        self.pub_tf = node.create_publisher(TFMessage, "/tf", qos_profile=rclpy.qos.qos_profile_parameters)
 
     def send_transform(self, translation, rotation, time, child, parent):
         """
@@ -103,7 +126,8 @@ class TransformBroadcaster(object):
         :param transform: geometry_msgs.msg.TransformStamped
         Broadcast the transformation from tf frame child to parent on ROS topic ``"/tf"``.
         """
-        tfm = TFMessage([transform])
+        #tfm = TFMessage([transform])
+        tfm = TFMessage(transforms=[transform])
         self.pub_tf.publish(tfm)
 
 
@@ -139,36 +163,56 @@ class CozmoRos(rclpy.Node):
         self._last_pose = self._cozmo.pose
         self._wheel_vel = (0, 0)
         self._optical_frame_orientation = quaternion_from_euler(-np.pi/2., .0, -np.pi/2.)
-        self._camera_info_manager = CameraInfoManager('cozmo_camera', namespace='/cozmo_camera')
+        self._camera_info_manager = CameraInfoManager(self, 'cozmo_camera', namespace='/cozmo_camera')
 
         # tf
-        self._tfb = TransformBroadcaster()
+        self._tfb = TransformBroadcaster(self)
 
         # params
-        self._odom_frame = rospy.get_param('~odom_frame', 'odom')
-        self._footprint_frame = rospy.get_param('~footprint_frame', 'base_footprint')
-        self._base_frame = rospy.get_param('~base_frame', 'base_link')
-        self._head_frame = rospy.get_param('~head_frame', 'head_link')
-        self._camera_frame = rospy.get_param('~camera_frame', 'camera_link')
-        self._camera_optical_frame = rospy.get_param('~camera_optical_frame', 'cozmo_camera')
-        camera_info_url = rospy.get_param('~camera_info_url', '')
+        ## TODO: use rosparam when rclpy supports it
+        #self._odom_frame = rospy.get_param('~odom_frame', 'odom')
+        self._odom_frame = 'odom'
+        #self._footprint_frame = rospy.get_param('~footprint_frame', 'base_footprint')
+        self._footprint_frame = 'base_footprint'
+        #self._base_frame = rospy.get_param('~base_frame', 'base_link')
+        self._base_frame = 'base_link'
+        #self._head_frame = rospy.get_param('~head_frame', 'head_link')
+        self._head_frame = 'head_link'
+        #self._camera_frame = rospy.get_param('~camera_frame', 'camera_link')
+        self._camera_frame = 'camera_link'
+        #self._camera_optical_frame = rospy.get_param('~camera_optical_frame', 'cozmo_camera')
+        self._camera_optical_frame = 'cozmo_camera'
+        #camera_info_url = rospy.get_param('~camera_info_url', '')
+        camera_info_url = ''
 
         # pubs
-        self._joint_state_pub = rospy.Publisher('joint_states', JointState, queue_size=1)
-        self._odom_pub = rospy.Publisher('odom', Odometry, queue_size=1)
-        self._imu_pub = rospy.Publisher('imu', Imu, queue_size=1)
-        self._battery_pub = rospy.Publisher('battery', BatteryState, queue_size=1)
+        #self._joint_state_pub = rospy.Publisher('joint_states', JointState, queue_size=1)
+        self._joint_state_pub = self.create_publisher(JointState, 'joint_states')
+        #self._odom_pub = rospy.Publisher('odom', Odometry, queue_size=1)
+        self._odom_pub = self.create_publisher(Odometry, 'odom')
+        #self._imu_pub = rospy.Publisher('imu', Imu, queue_size=1)
+        self._imu_pub = self.create_publisher(Imu, 'imu')
+        #self._battery_pub = rospy.Publisher('battery', BatteryState, queue_size=1)
+        self._battery_pub = self.create_publisher(BatteryState, 'battery')
         # Note: camera is published under global topic (preceding "/")
-        self._image_pub = rospy.Publisher('/cozmo_camera/image', Image, queue_size=10)
-        self._camera_info_pub = rospy.Publisher('/cozmo_camera/camera_info', CameraInfo, queue_size=10)
+        #self._image_pub = rospy.Publisher('/cozmo_camera/image', Image, queue_size=10)
+        self._image_pub = self.create_publisher(Image, '/cozmo_camera/image')
+        #self._camera_info_pub = rospy.Publisher('/cozmo_camera/camera_info', CameraInfo, queue_size=10)
+        self._camera_info_pub = self.create_publisher(CameraInfo, '/cozmo_camera/camera_info')
 
         # subs
-        self._backpack_led_sub = rospy.Subscriber(
-            'backpack_led', ColorRGBA, self._set_backpack_led, queue_size=1)
-        self._twist_sub = rospy.Subscriber('cmd_vel', Twist, self._twist_callback, queue_size=1)
-        self._say_sub = rospy.Subscriber('say', String, self._say_callback, queue_size=1)
-        self._head_sub = rospy.Subscriber('head_angle', Float64, self._move_head, queue_size=1)
-        self._lift_sub = rospy.Subscriber('lift_height', Float64, self._move_lift, queue_size=1)
+        #self._backpack_led_sub = rospy.Subscriber(
+        #    'backpack_led', ColorRGBA, self._set_backpack_led, queue_size=1)
+        self._backpack_led_sub = self.create_subscription(
+            ColorRGBA, 'backpack_led', self._set_backpack_led)
+        #self._twist_sub = rospy.Subscriber('cmd_vel', Twist, self._twist_callback, queue_size=1)
+        self._twist_sub = self.create_subscription(Twist, 'cmd_vel', self._twist_callback)
+        #self._say_sub = rospy.Subscriber('say', String, self._say_callback, queue_size=1)
+        self._say_sub = self.create_subscription(String, 'say', self._say_callback)
+        #self._head_sub = rospy.Subscriber('head_angle', Float64, self._move_head, queue_size=1)
+        self._head_sub = self.create_subscription(Float64, 'head_angle', self._move_head)
+        #self._lift_sub = rospy.Subscriber('lift_height', Float64, self._move_lift, queue_size=1)
+        self._lift_sub = self.create_subscription(Float64, 'lift_height', self._move_lift)
 
         # diagnostics
         self._diag_array = DiagnosticArray()
@@ -180,7 +224,8 @@ class CozmoRos(rclpy.Node):
         diag_status.values.append(KeyValue(key='Head Angle', value=''))
         diag_status.values.append(KeyValue(key='Lift Height', value=''))
         self._diag_array.status.append(diag_status)
-        self._diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=1)
+        #self._diag_pub = rospy.Publisher('/diagnostics', DiagnosticArray, queue_size=1)
+        self._diag_pub = self.create_publisher(DiagnosticArray, '/diagnostics')
 
         # camera info manager
         self._camera_info_manager.setURL(camera_info_url)
@@ -206,7 +251,8 @@ class CozmoRos(rclpy.Node):
             diag_status.message = 'Battery very low! Cozmo will power off soon!'
 
         # update message stamp and publish
-        self._diag_array.header.stamp = rospy.Time.now()
+        #self._diag_array.header.stamp = rospy.Time.now()
+        self._diag_array.header.stamp = TimeStamp.now()
         self._diag_pub.publish(self._diag_array)
 
     def _move_head(self, cmd):
@@ -245,7 +291,7 @@ class CozmoRos(rclpy.Node):
         # setup color as integer values
         color = [int(x * 255) for x in [msg.r, msg.g, msg.b, msg.a]]
         # create lights object with duration
-        light = cozmo.lights.Light(cozmo.lights.Color(rgba=color), on_period_ms=1000)
+        light = cozmo.lights.Light(cozmo.lights.Color(rgb=color), on_period_ms=1000)
         # set lights
         self._cozmo.set_all_backpack_lights(light)
 
@@ -260,6 +306,7 @@ class CozmoRos(rclpy.Node):
         :param  cmd:    The commanded velocities.
 
         """
+        print(cmd)
         # compute differential wheel speed
         axle_length = 0.07  # 7cm
         self._cmd_lin_vel = cmd.linear.x
@@ -285,7 +332,8 @@ class CozmoRos(rclpy.Node):
         """
 
         for obj in self._cozmo.world.visible_objects:
-            now = rospy.Time.now()
+            #now = rospy.Time.now()
+            now = TimeStamp.now()
             x = obj.pose.position.x * 0.001
             y = obj.pose.position.y * 0.001
             z = obj.pose.position.z * 0.001
@@ -299,9 +347,10 @@ class CozmoRos(rclpy.Node):
         Publish latest camera image as Image with CameraInfo.
 
         """
+        ## TODO: use get_num_connections when rclpy supports it
         # only publish if we have a subscriber
-        if self._image_pub.get_num_connections() == 0:
-            return
+        #if self._image_pub.get_num_connections() == 0:
+        #    return
 
         # get latest image from cozmo's camera
         camera_image = self._cozmo.world.latest_image
@@ -316,7 +365,8 @@ class CozmoRos(rclpy.Node):
             ros_img.data = img.tobytes()
             ros_img.header.frame_id = 'cozmo_camera'
             cozmo_time = camera_image.image_recv_time
-            ros_img.header.stamp = rospy.Time.from_sec(cozmo_time)
+            #ros_img.header.stamp = rospy.Time.from_sec(cozmo_time)
+            ros_img.header.stamp = TimeStamp.from_sec(cozmo_time)
             # publish images and camera info
             self._image_pub.publish(ros_img)
             camera_info = self._camera_info_manager.getCameraInfo()
@@ -328,12 +378,14 @@ class CozmoRos(rclpy.Node):
         Publish joint states as JointStates.
 
         """
+        ## TODO: use get_num_connections when rclpy supports it
         # only publish if we have a subscriber
-        if self._joint_state_pub.get_num_connections() == 0:
-            return
+        #if self._joint_state_pub.get_num_connections() == 0:
+        #    return
 
         js = JointState()
-        js.header.stamp = rospy.Time.now()
+        #js.header.stamp = rospy.Time.now()
+        js.header.stamp = TimeStamp.now()
         js.header.frame_id = 'cozmo'
         js.name = ['head', 'lift']
         js.position = [self._cozmo.head_angle.radians,
@@ -347,12 +399,14 @@ class CozmoRos(rclpy.Node):
         Publish inertia data as Imu message.
 
         """
+        ## TODO: use get_num_connections when rclpy supports it
         # only publish if we have a subscriber
-        if self._imu_pub.get_num_connections() == 0:
-            return
+        #if self._imu_pub.get_num_connections() == 0:
+        #    return
 
         imu = Imu()
-        imu.header.stamp = rospy.Time.now()
+        #imu.header.stamp = rospy.Time.now()
+        imu.header.stamp = TimeStamp.now()
         imu.header.frame_id = self._base_frame
         imu.orientation.w = self._cozmo.pose.rotation.q0
         imu.orientation.x = self._cozmo.pose.rotation.q1
@@ -371,12 +425,14 @@ class CozmoRos(rclpy.Node):
         Publish battery as BatteryState message.
 
         """
+        ## TODO: use get_num_connections when rclpy supports it
         # only publish if we have a subscriber
-        if self._battery_pub.get_num_connections() == 0:
-            return
+        #if self._battery_pub.get_num_connections() == 0:
+        #    return
 
         battery = BatteryState()
-        battery.header.stamp = rospy.Time.now()
+        #battery.header.stamp = rospy.Time.now()
+        battery.header.stamp = TimeStamp.now()
         battery.voltage = self._cozmo.battery_voltage
         battery.present = True
         if self._cozmo.is_on_charger:  # is_charging always return False
@@ -390,11 +446,13 @@ class CozmoRos(rclpy.Node):
         Publish current pose as Odometry message.
 
         """
+        ## TODO: use get_num_connections when rclpy supports it
         # only publish if we have a subscriber
-        if self._odom_pub.get_num_connections() == 0:
-            return
+        #if self._odom_pub.get_num_connections() == 0:
+        #    return
 
-        now = rospy.Time.now()
+        #now = rospy.Time.now()
+        now = TimeStamp.now()
         odom = Odometry()
         odom.header.frame_id = self._odom_frame
         odom.header.stamp = now
@@ -407,10 +465,10 @@ class CozmoRos(rclpy.Node):
         odom.pose.pose.orientation.y = q[1]
         odom.pose.pose.orientation.z = q[2]
         odom.pose.pose.orientation.w = q[3]
-        odom.pose.covariance = np.diag([1e-2, 1e-2, 1e-2, 1e3, 1e3, 1e-1]).ravel()
+        odom.pose.covariance = np.diag([1e-2, 1e-2, 1e-2, 1e3, 1e3, 1e-1]).ravel().tolist()
         odom.twist.twist.linear.x = self._lin_vel
         odom.twist.twist.angular.z = self._ang_vel
-        odom.twist.covariance = np.diag([1e-2, 1e3, 1e3, 1e3, 1e3, 1e-2]).ravel()
+        odom.twist.covariance = np.diag([1e-2, 1e3, 1e3, 1e3, 1e3, 1e-2]).ravel().tolist()
         self._odom_pub.publish(odom)
 
     def _publish_tf(self, update_rate):
@@ -427,7 +485,8 @@ class CozmoRos(rclpy.Node):
         camera_frame -> camera_optical_frame
 
         """
-        now = rospy.Time.now()
+        #now = rospy.Time.now()
+        now = TimeStamp.now()
         x = self._cozmo.pose.position.x * 0.001
         y = self._cozmo.pose.position.y * 0.001
         z = self._cozmo.pose.position.z * 0.001

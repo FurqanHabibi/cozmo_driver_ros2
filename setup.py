@@ -8,13 +8,14 @@ setup(
     packages=[],
     py_modules=[
         'cozmo_driver',
-        'transformations'
+        'transformations',
+        'camera_info_manager'
     ],
-    include_package_data=True,
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
         ('shared/' + package_name, ['package.xml']),
+        ('lib/python3.5/site-packages/config', ['config/cozmo_camera_calibrationdata.tar.gz', 'config/cozmo_camera.yaml'])
     ],
     install_requires=['setuptools'],
     maintainer='Muhammad Furqan Habibi',
