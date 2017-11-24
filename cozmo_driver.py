@@ -306,7 +306,6 @@ class CozmoRos(rclpy.Node):
         :param  cmd:    The commanded velocities.
 
         """
-        print(cmd)
         # compute differential wheel speed
         axle_length = 0.07  # 7cm
         self._cmd_lin_vel = cmd.linear.x
