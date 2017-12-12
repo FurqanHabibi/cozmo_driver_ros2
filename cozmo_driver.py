@@ -39,6 +39,7 @@ from cozmo.util import radians
 # ROS
 #import rospy
 import rclpy
+from rclpy.node import Node
 from transformations import quaternion_from_euler
 from camera_info_manager import CameraInfoManager
 
@@ -132,7 +133,7 @@ class TransformBroadcaster():
 
 
 #class CozmoRos(object):
-class CozmoRos(rclpy.Node):
+class CozmoRos(Node):
     """
     The Cozmo ROS driver object.
 

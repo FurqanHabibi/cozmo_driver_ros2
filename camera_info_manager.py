@@ -211,8 +211,8 @@ class CameraInfoManager():
         service_name = 'set_camera_info'
         if namespace:
             service_name = namespace + '/' + service_name
-        #rclpy.logging.logdebug(service_name + ' service declared')
-        print(service_name + ' service declared')
+        rclpy.logging._root_logger.log(service_name + ' service declared', rclpy.logging.LoggingSeverity.DEBUG)
+        #print(service_name + ' service declared')
         self.svc = node.create_service(SetCameraInfo, service_name, self.setCameraInfo)
 
     def __str__(self):
@@ -289,8 +289,8 @@ class CameraInfoManager():
             self._loadCalibration(default_camera_info_url, cname)
             return
 
-        #rclpy.logging.loginfo('camera calibration URL: ' + resolved_url)
-        print('camera calibration URL: ' + resolved_url)
+        rclpy.logging._root_logger.log('camera calibration URL: ' + resolved_url, rclpy.logging.LoggingSeverity.INFO)
+        #print('camera calibration URL: ' + resolved_url)
 
         if url_type == URL_file:
             self.camera_info = loadCalibrationFile(resolved_url[7:], cname)
@@ -302,8 +302,8 @@ class CameraInfoManager():
             self.camera_info = loadCalibrationFile(filename, cname)
 
         else:
-            #rclpy.logging.logerr("Invalid camera calibration URL: " + resolved_url)
-            print("Invalid camera calibration URL: " + resolved_url)
+            rclpy.logging._root_logger.log("Invalid camera calibration URL: " + resolved_url, rclpy.logging.LoggingSeverity.ERROR)
+            #print("Invalid camera calibration URL: " + resolved_url)
             self.camera_info = CameraInfo()
 
     def loadCameraInfo(self):
@@ -329,8 +329,8 @@ class CameraInfoManager():
         :post: camera_info updated, can be used immediately without
                reloading.
         """
-        #rclpy.logging.logdebug('SetCameraInfo received for ' + self.cname)
-        print('SetCameraInfo received for ' + self.cname)
+        rclpy.logging._root_logger.log('SetCameraInfo received for ' + self.cname, rclpy.logging.LoggingSeverity.DEBUG)
+        #print('SetCameraInfo received for ' + self.cname)
         self.camera_info = req.camera_info
         rsp.success = saveCalibration(req.camera_info,
                                       self.url, self.cname)
@@ -433,8 +433,8 @@ def getPackageFileName(url):
 
     #except rospkg.ResourceNotFound:
     except PackageNotFoundError:
-        #rclpy.logging.logwarn("unknown package: " + package + " (ignored)")
-        print("unknown package: " + package + " (ignored)")
+        rclpy.logging._root_logger.log("unknown package: " + package + " (ignored)", rclpy.logging.LoggingSeverity.WARN)
+        #print("unknown package: " + package + " (ignored)")
 
     return pkgPath
 
@@ -459,10 +459,10 @@ def loadCalibrationFile(filename, cname):
         calib = yaml.load(f)
         if calib is not None:
             if calib['camera_name'] != cname:
-                #rclpy.logging.logwarn("[" + cname + "] does not match name " +
-                #                      calib['camera_name'] + " in file " + filename)
-                print("[" + cname + "] does not match name " +
-                      calib['camera_name'] + " in file " + filename)
+                rclpy.logging._root_logger.log("[" + cname + "] does not match name " +
+                                      calib['camera_name'] + " in file " + filename, rclpy.logging.LoggingSeverity.WARN)
+                #print("[" + cname + "] does not match name " +
+                #      calib['camera_name'] + " in file " + filename)
 
             # fill in CameraInfo fields
             ci.width = calib['image_width']
@@ -547,9 +547,9 @@ def resolveURL(url, cname):
             if ros_home is None:
                 ros_home = os.environ.get('HOME')
                 if ros_home is None:
-                    #rclpy.logging.logwarn('[CameraInfoManager]' +
-                    #                      ' unable to resolve ${ROS_HOME}')
-                    print('[CameraInfoManager]' + ' unable to resolve ${ROS_HOME}')
+                    rclpy.logging._root_logger.log('[CameraInfoManager]' +
+                                          ' unable to resolve ${ROS_HOME}', rclpy.logging.LoggingSeverity.WARN)
+                    #print('[CameraInfoManager]' + ' unable to resolve ${ROS_HOME}')
                     ros_home = '${ROS_HOME}' # retain it unresolved
                 else:
                     ros_home += '/.ros'
@@ -558,10 +558,10 @@ def resolveURL(url, cname):
 
         else:
             # not a valid substitution variable
-            #rclpy.logging.logwarn("[CameraInfoManager]" +
-            #                      " invalid URL substitution (not resolved): "
-            #                      + url)
-            print("[CameraInfoManager]" + " invalid URL substitution (not resolved): " + url)
+            rclpy.logging._root_logger.log("[CameraInfoManager]" +
+                                  " invalid URL substitution (not resolved): "
+                                  + url, rclpy.logging.LoggingSeverity.WARN)
+            #print("[CameraInfoManager]" + " invalid URL substitution (not resolved): " + url)
             resolved += "$"            # keep the bogus '$'
 
         # look for next '$'
@@ -587,8 +587,8 @@ def saveCalibration(new_info, url, cname):
         return saveCalibration(new_info, default_camera_info_url,
                                cname)
 
-    #rclpy.logging.loginfo('writing calibration data to URL: ' + resolved_url)
-    print('writing calibration data to URL: ' + resolved_url)
+    rclpy.logging._root_logger.log('writing calibration data to URL: ' + resolved_url, rclpy.logging.LoggingSeverity.INFO)
+    #print('writing calibration data to URL: ' + resolved_url)
 
     if url_type == URL_file:
         success = saveCalibrationFile(new_info, resolved_url[7:], cname)
@@ -596,9 +596,9 @@ def saveCalibration(new_info, url, cname):
     elif url_type == URL_package:
         filename = getPackageFileName(resolved_url)
         if filename == '':          # package not resolved
-            #rclpy.logging.logerr('Calibration package missing: ' +
-            #             resolved_url + ' (ignored)')
-            print('Calibration package missing: ' + resolved_url + ' (ignored)')
+            rclpy.logging._root_logger.log('Calibration package missing: ' +
+                         resolved_url + ' (ignored)', rclpy.logging.LoggingSeverity.ERROR)
+            #print('Calibration package missing: ' + resolved_url + ' (ignored)')
             # treat it like an empty URL
             success = saveCalibration(new_info, default_camera_info_url,
                                       cname)
@@ -606,8 +606,8 @@ def saveCalibration(new_info, url, cname):
             success = saveCalibrationFile(new_info, filename, cname)
 
     else:
-        #rclpy.logging.logerr("Invalid camera calibration URL: " + resolved_url)
-        print("Invalid camera calibration URL: " + resolved_url)
+        rclpy.logging._root_logger.log("Invalid camera calibration URL: " + resolved_url, rclpy.logging.LoggingSeverity.ERROR)
+        #print("Invalid camera calibration URL: " + resolved_url)
         # treat it like an empty URL
         success = saveCalibration(new_info, default_camera_info_url,
                                   cname)
@@ -636,8 +636,8 @@ def saveCalibrationFile(ci, filename, cname):
             # there is at least one '/', at the beginning.
             last_slash = filename.rfind('/')
             if last_slash < 0:
-                #rclpy.logging.logerr("filename [" + filename + "] has no '/'")]
-                print("filename [" + filename + "] has no '/'")
+                rclpy.logging._root_logger.log("filename [" + filename + "] has no '/'", rclpy.logging.LoggingSeverity.ERROR)
+                #print("filename [" + filename + "] has no '/'")
                 return False    # not a valid URL
 
             # try to create the directory and all its parents
@@ -645,9 +645,9 @@ def saveCalibrationFile(ci, filename, cname):
             try:
                 os.makedirs(dirname)
             except OSError:
-                #rclpy.logging.logerr("unable to create path to directory [" +
-                #                     dirname + "]")
-                print("unable to create path to directory [" + dirname + "]")
+                rclpy.logging._root_loggr.log("unable to create path to directory [" +
+                                     dirname + "]", rclpy.logging.LoggingSeverity.ERROR)
+                #print("unable to create path to directory [" + dirname + "]")
                 return False
 
             # try again to create the file
@@ -657,8 +657,8 @@ def saveCalibrationFile(ci, filename, cname):
                 pass
 
     if f is None:               # something went wrong above?
-        #rclpy.logging.logerr("file [" + filename + "] not accessible")
-        print("file [" + filename + "] not accessible")
+        rclpy.logging._root_logger.log("file [" + filename + "] not accessible", rclpy.logging.LoggingSeverity.ERROR)
+        #print("file [" + filename + "] not accessible")
         return False            # unable to write this file
 
     # make calibration dictionary from CameraInfo fields and camera name
