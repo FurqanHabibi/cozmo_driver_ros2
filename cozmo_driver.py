@@ -356,12 +356,13 @@ class CozmoRos(Node):
         camera_image = self._cozmo.world.latest_image
         if camera_image is not None:
             # convert image to gray scale as it is gray although
-            img = camera_image.raw_image.convert('L')
+            #img = camera_image.raw_image.convert('L')
+            img = camera_image.raw_image
             ros_img = Image()
-            ros_img.encoding = 'mono8'
+            ros_img.encoding = 'rgb8'
             ros_img.width = img.size[0]
             ros_img.height = img.size[1]
-            ros_img.step = ros_img.width
+            ros_img.step = ros_img.width * 3
             ros_img.data = img.tobytes()
             ros_img.header.frame_id = 'cozmo_camera'
             cozmo_time = camera_image.image_recv_time
@@ -570,6 +571,7 @@ def cozmo_app(coz_conn):
     """
     coz = coz_conn.wait_for_robot()
     coz.camera.image_stream_enabled = True
+    coz.camera.color_image_enabled = True
     #coz_ros = CozmoRos(coz)
     coz_ros = CozmoRos(coz, 'cozmo_driver')
     #coz_ros.run()
