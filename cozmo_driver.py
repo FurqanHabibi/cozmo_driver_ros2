@@ -26,6 +26,7 @@ limitations under the License.
 
 """
 # system
+import os
 import sys
 from copy import deepcopy
 from math import modf
@@ -184,7 +185,7 @@ class CozmoRos(Node):
         #self._camera_optical_frame = rospy.get_param('~camera_optical_frame', 'cozmo_camera')
         self._camera_optical_frame = 'cozmo_camera'
         #camera_info_url = rospy.get_param('~camera_info_url', '')
-        camera_info_url = ''
+        camera_info_url = 'file://' + os.path.dirname(os.path.abspath(__file__)) + '/config/cozmo_camera.yaml'
 
         # pubs
         #self._joint_state_pub = rospy.Publisher('joint_states', JointState, queue_size=1)
