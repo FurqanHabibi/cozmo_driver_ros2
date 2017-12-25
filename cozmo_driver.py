@@ -267,7 +267,7 @@ class CozmoRos(Node):
         """
         action = self._cozmo.set_head_angle(radians(cmd.data * np.pi / 180.), duration=0.1,
                                             in_parallel=True)
-        action.wait_for_completed()
+        #action.wait_for_completed()
 
     def _move_lift(self, cmd):
         """
@@ -280,7 +280,7 @@ class CozmoRos(Node):
         """
         action = self._cozmo.set_lift_height(height=cmd.data,
                                              duration=0.2, in_parallel=True)
-        action.wait_for_completed()
+        #action.wait_for_completed()
 
     def _set_backpack_led(self, msg):
         """
@@ -324,7 +324,7 @@ class CozmoRos(Node):
         :param  msg:    The text message to say.
 
         """
-        self._cozmo.say_text(msg.data).wait_for_completed()
+        self._cozmo.say_text(msg.data)#.wait_for_completed()
 
     def _publish_objects(self):
         """
